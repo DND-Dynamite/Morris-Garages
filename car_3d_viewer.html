@@ -1,0 +1,525 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D Car Model Viewer</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Arial', sans-serif;
+            background: linear-gradient(135deg, #1e3c72, #2a5298);
+            overflow: hidden;
+            color: white;
+        }
+
+        #container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+        }
+
+        #loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            z-index: 1000;
+            background: rgba(0, 0, 0, 0.8);
+            padding: 30px;
+            border-radius: 15px;
+            backdrop-filter: blur(10px);
+        }
+
+        .spinner {
+            border: 4px solid rgba(255, 255, 255, 0.3);
+            border-top: 4px solid #fff;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        #controls {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 20px;
+            border-radius: 10px;
+            backdrop-filter: blur(10px);
+            z-index: 100;
+            min-width: 250px;
+        }
+
+        .control-group {
+            margin-bottom: 15px;
+        }
+
+        .control-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-size: 14px;
+            font-weight: bold;
+        }
+
+        .control-group input[type="range"] {
+            width: 100%;
+            height: 5px;
+            border-radius: 5px;
+            background: #ddd;
+            outline: none;
+            opacity: 0.7;
+            transition: opacity 0.2s;
+        }
+
+        .control-group input[type="range"]:hover {
+            opacity: 1;
+        }
+
+        .control-group input[type="range"]::-webkit-slider-thumb {
+            appearance: none;
+            width: 15px;
+            height: 15px;
+            border-radius: 50%;
+            background: #4CAF50;
+            cursor: pointer;
+        }
+
+        .control-group input[type="range"]::-moz-range-thumb {
+            width: 15px;
+            height: 15px;
+            border-radius: 50%;
+            background: #4CAF50;
+            cursor: pointer;
+            border: none;
+        }
+
+        .color-controls {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .color-btn {
+            width: 30px;
+            height: 30px;
+            border: 2px solid white;
+            border-radius: 50%;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+
+        .color-btn:hover {
+            transform: scale(1.1);
+        }
+
+        .color-btn.active {
+            border-color: #ffff00;
+            box-shadow: 0 0 10px rgba(255, 255, 0, 0.5);
+        }
+
+        #info {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 15px;
+            border-radius: 10px;
+            backdrop-filter: blur(10px);
+            font-size: 12px;
+        }
+
+        #error {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(255, 0, 0, 0.9);
+            color: white;
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+            z-index: 1001;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div id="container">
+        <div id="loading">
+            <div class="spinner"></div>
+            <p>Loading 3D Car Model...</p>
+        </div>
+
+        <div id="error">
+            <h3>Model Loading Error</h3>
+            <p>Could not load the car model. Using a placeholder cube instead.</p>
+            <p>Please ensure your model file is in the correct path.</p>
+        </div>
+
+        <div id="controls">
+            <h3>Car Controls</h3>
+            
+            <div class="control-group">
+                <label>Rotation Speed</label>
+                <input type="range" id="rotationSpeed" min="0" max="0.02" step="0.001" value="0.005">
+            </div>
+
+            <div class="control-group">
+                <label>Camera Distance</label>
+                <input type="range" id="cameraDistance" min="5" max="50" step="1" value="15">
+            </div>
+
+            <div class="control-group">
+                <label>Lighting Intensity</label>
+                <input type="range" id="lightIntensity" min="0" max="3" step="0.1" value="1">
+            </div>
+
+            <div class="control-group">
+                <label>Car Colors</label>
+                <div class="color-controls">
+                    <div class="color-btn active" style="background-color: #ff4444;" data-color="#ff4444"></div>
+                    <div class="color-btn" style="background-color: #4444ff;" data-color="#4444ff"></div>
+                    <div class="color-btn" style="background-color: #44ff44;" data-color="#44ff44"></div>
+                    <div class="color-btn" style="background-color: #ffff44;" data-color="#ffff44"></div>
+                    <div class="color-btn" style="background-color: #ff44ff;" data-color="#ff44ff"></div>
+                    <div class="color-btn" style="background-color: #ffffff;" data-color="#ffffff"></div>
+                    <div class="color-btn" style="background-color: #000000;" data-color="#000000"></div>
+                </div>
+            </div>
+        </div>
+
+        <div id="info">
+            <strong>Controls:</strong><br>
+            • Mouse: Orbit camera<br>
+            • Wheel: Zoom in/out<br>
+            • Use panel controls for customization
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script>
+        class Car3DViewer {
+            constructor() {
+                this.scene = null;
+                this.camera = null;
+                this.renderer = null;
+                this.carModel = null;
+                this.lights = [];
+                this.controls = null;
+                this.animationId = null;
+                this.rotationSpeed = 0.005;
+                this.isMouseDown = false;
+                this.mouseX = 0;
+                this.mouseY = 0;
+                this.cameraDistance = 15;
+                
+                this.init();
+            }
+
+            init() {
+                this.createScene();
+                this.createCamera();
+                this.createRenderer();
+                this.createLights();
+                this.loadCarModel();
+                this.setupControls();
+                this.setupEventListeners();
+                this.animate();
+            }
+
+            createScene() {
+                this.scene = new THREE.Scene();
+                this.scene.background = new THREE.Color(0x1a1a2e);
+                
+                // Add fog for depth
+                this.scene.fog = new THREE.Fog(0x1a1a2e, 20, 100);
+            }
+
+            createCamera() {
+                this.camera = new THREE.PerspectiveCamera(
+                    75,
+                    window.innerWidth / window.innerHeight,
+                    0.1,
+                    1000
+                );
+                this.camera.position.set(0, 5, this.cameraDistance);
+                this.camera.lookAt(0, 0, 0);
+            }
+
+            createRenderer() {
+                this.renderer = new THREE.WebGLRenderer({ antialias: true });
+                this.renderer.setSize(window.innerWidth, window.innerHeight);
+                this.renderer.shadowMap.enabled = true;
+                this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+                this.renderer.outputEncoding = THREE.sRGBEncoding;
+                this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
+                this.renderer.toneMappingExposure = 1.2;
+                
+                document.getElementById('container').appendChild(this.renderer.domElement);
+            }
+
+            createLights() {
+                // Ambient light
+                const ambientLight = new THREE.AmbientLight(0x404040, 0.4);
+                this.scene.add(ambientLight);
+                this.lights.push(ambientLight);
+
+                // Main directional light
+                const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
+                directionalLight.position.set(10, 10, 5);
+                directionalLight.castShadow = true;
+                directionalLight.shadow.mapSize.width = 2048;
+                directionalLight.shadow.mapSize.height = 2048;
+                this.scene.add(directionalLight);
+                this.lights.push(directionalLight);
+
+                // Fill lights
+                const fillLight1 = new THREE.DirectionalLight(0x4444ff, 0.3);
+                fillLight1.position.set(-10, 5, -5);
+                this.scene.add(fillLight1);
+                this.lights.push(fillLight1);
+
+                const fillLight2 = new THREE.DirectionalLight(0xff4444, 0.2);
+                fillLight2.position.set(5, -5, 10);
+                this.scene.add(fillLight2);
+                this.lights.push(fillLight2);
+            }
+
+            loadCarModel() {
+                // Since GLTFLoader is not available in this environment, we'll create a placeholder car
+                this.createPlaceholderCar();
+                
+                // In a real implementation, you would use:
+                /*
+                const loader = new THREE.GLTFLoader();
+                loader.load('assets/car-model.glb', (gltf) => {
+                    this.carModel = gltf.scene;
+                    this.carModel.scale.setScalar(1);
+                    this.carModel.position.set(0, 0, 0);
+                    this.scene.add(this.carModel);
+                    this.hideLoading();
+                }, undefined, (error) => {
+                    console.error('Error loading model:', error);
+                    this.showError();
+                    this.createPlaceholderCar();
+                });
+                */
+            }
+
+            createPlaceholderCar() {
+                const carGroup = new THREE.Group();
+
+                // Car body
+                const bodyGeometry = new THREE.BoxGeometry(4, 1.5, 2);
+                const bodyMaterial = new THREE.MeshPhongMaterial({ color: 0xff4444 });
+                const body = new THREE.Mesh(bodyGeometry, bodyMaterial);
+                body.position.y = 1;
+                body.castShadow = true;
+                body.receiveShadow = true;
+                carGroup.add(body);
+
+                // Car roof
+                const roofGeometry = new THREE.BoxGeometry(2.5, 1, 1.8);
+                const roofMaterial = new THREE.MeshPhongMaterial({ color: 0xff4444 });
+                const roof = new THREE.Mesh(roofGeometry, roofMaterial);
+                roof.position.set(0, 2.25, 0);
+                roof.castShadow = true;
+                carGroup.add(roof);
+
+                // Wheels
+                const wheelGeometry = new THREE.CylinderGeometry(0.5, 0.5, 0.3, 16);
+                const wheelMaterial = new THREE.MeshPhongMaterial({ color: 0x333333 });
+
+                const wheelPositions = [
+                    [-1.5, 0.5, 1.2],
+                    [1.5, 0.5, 1.2],
+                    [-1.5, 0.5, -1.2],
+                    [1.5, 0.5, -1.2]
+                ];
+
+                wheelPositions.forEach(pos => {
+                    const wheel = new THREE.Mesh(wheelGeometry, wheelMaterial);
+                    wheel.position.set(...pos);
+                    wheel.rotation.z = Math.PI / 2;
+                    wheel.castShadow = true;
+                    carGroup.add(wheel);
+                });
+
+                // Headlights
+                const headlightGeometry = new THREE.SphereGeometry(0.2, 8, 8);
+                const headlightMaterial = new THREE.MeshPhongMaterial({ 
+                    color: 0xffffaa,
+                    emissive: 0x222200
+                });
+
+                const leftHeadlight = new THREE.Mesh(headlightGeometry, headlightMaterial);
+                leftHeadlight.position.set(-0.8, 1.2, 1.1);
+                carGroup.add(leftHeadlight);
+
+                const rightHeadlight = new THREE.Mesh(headlightGeometry, headlightMaterial);
+                rightHeadlight.position.set(0.8, 1.2, 1.1);
+                carGroup.add(rightHeadlight);
+
+                // Store references for color changing
+                this.carBody = body;
+                this.carRoof = roof;
+
+                this.carModel = carGroup;
+                this.scene.add(carGroup);
+
+                // Add ground
+                this.createGround();
+                
+                this.hideLoading();
+            }
+
+            createGround() {
+                const groundGeometry = new THREE.PlaneGeometry(100, 100);
+                const groundMaterial = new THREE.MeshPhongMaterial({ 
+                    color: 0x2a2a2a,
+                    shininess: 10
+                });
+                const ground = new THREE.Mesh(groundGeometry, groundMaterial);
+                ground.rotation.x = -Math.PI / 2;
+                ground.position.y = 0;
+                ground.receiveShadow = true;
+                this.scene.add(ground);
+            }
+
+            setupControls() {
+                // Manual orbit controls
+                const canvas = this.renderer.domElement;
+
+                canvas.addEventListener('mousedown', (e) => {
+                    this.isMouseDown = true;
+                    this.mouseX = e.clientX;
+                    this.mouseY = e.clientY;
+                });
+
+                canvas.addEventListener('mouseup', () => {
+                    this.isMouseDown = false;
+                });
+
+                canvas.addEventListener('mousemove', (e) => {
+                    if (!this.isMouseDown) return;
+
+                    const deltaX = e.clientX - this.mouseX;
+                    const deltaY = e.clientY - this.mouseY;
+
+                    // Rotate camera around the car
+                    const spherical = new THREE.Spherical();
+                    spherical.setFromVector3(this.camera.position);
+                    spherical.theta -= deltaX * 0.01;
+                    spherical.phi += deltaY * 0.01;
+                    spherical.phi = Math.max(0.1, Math.min(Math.PI - 0.1, spherical.phi));
+
+                    this.camera.position.setFromSpherical(spherical);
+                    this.camera.lookAt(0, 0, 0);
+
+                    this.mouseX = e.clientX;
+                    this.mouseY = e.clientY;
+                });
+
+                canvas.addEventListener('wheel', (e) => {
+                    e.preventDefault();
+                    this.cameraDistance += e.deltaY * 0.01;
+                    this.cameraDistance = Math.max(5, Math.min(50, this.cameraDistance));
+                    
+                    const direction = this.camera.position.clone().normalize();
+                    this.camera.position.copy(direction.multiplyScalar(this.cameraDistance));
+                });
+            }
+
+            setupEventListeners() {
+                // Rotation speed control
+                document.getElementById('rotationSpeed').addEventListener('input', (e) => {
+                    this.rotationSpeed = parseFloat(e.target.value);
+                });
+
+                // Camera distance control
+                document.getElementById('cameraDistance').addEventListener('input', (e) => {
+                    this.cameraDistance = parseFloat(e.target.value);
+                    const direction = this.camera.position.clone().normalize();
+                    this.camera.position.copy(direction.multiplyScalar(this.cameraDistance));
+                });
+
+                // Light intensity control
+                document.getElementById('lightIntensity').addEventListener('input', (e) => {
+                    const intensity = parseFloat(e.target.value);
+                    if (this.lights[1]) { // Main directional light
+                        this.lights[1].intensity = intensity;
+                    }
+                });
+
+                // Color controls
+                document.querySelectorAll('.color-btn').forEach(btn => {
+                    btn.addEventListener('click', (e) => {
+                        document.querySelectorAll('.color-btn').forEach(b => b.classList.remove('active'));
+                        btn.classList.add('active');
+                        
+                        const color = btn.dataset.color;
+                        this.changeCarColor(color);
+                    });
+                });
+
+                // Window resize
+                window.addEventListener('resize', () => {
+                    this.camera.aspect = window.innerWidth / window.innerHeight;
+                    this.camera.updateProjectionMatrix();
+                    this.renderer.setSize(window.innerWidth, window.innerHeight);
+                });
+            }
+
+            changeCarColor(color) {
+                if (this.carBody) {
+                    this.carBody.material.color.setHex(color.replace('#', '0x'));
+                }
+                if (this.carRoof) {
+                    this.carRoof.material.color.setHex(color.replace('#', '0x'));
+                }
+            }
+
+            animate() {
+                this.animationId = requestAnimationFrame(() => this.animate());
+
+                // Auto-rotate the car
+                if (this.carModel && this.rotationSpeed > 0) {
+                    this.carModel.rotation.y += this.rotationSpeed;
+                }
+
+                this.renderer.render(this.scene, this.camera);
+            }
+
+            hideLoading() {
+                document.getElementById('loading').style.display = 'none';
+            }
+
+            showError() {
+                document.getElementById('error').style.display = 'block';
+                setTimeout(() => {
+                    document.getElementById('error').style.display = 'none';
+                }, 5000);
+            }
+        }
+
+        // Initialize the app when the page loads
+        window.addEventListener('load', () => {
+            new Car3DViewer();
+        });
+    </script>
+</body>
+</html>
